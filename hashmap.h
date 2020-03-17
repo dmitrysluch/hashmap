@@ -1,18 +1,4 @@
-//    DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE Version 2,
-//    February 2020
-//
-//    Copyright(C) 2020 Sluch Dmitry<dbsluch@edu.hse.ru>
-//
-//    Everyone is permitted to copy and distribute verbatim
-//    or modified copies of this license document,
-//    and changing it is allowed as long as the name is changed.
-//
-//    DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE TERMS AND
-//    CONDITIONS FOR COPYING,
-//    DISTRIBUTION AND MODIFICATION
-//
-//    0. You just DO WHAT THE FUCK YOU WANT TO.
-//    cpplint told that there should be a license so there it is
+// Copyright 2020 Dmitry Sluch dbsluch @edu.hse.ru
 
 #include <stddef.h>
 #include <algorithm>
@@ -21,26 +7,25 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
-// c++ 14 doesn't have optional,
-// so I copypasted my implementation from oimp course
+
+// Optional class manages value that may or may not be present
+// Optional isn't implemented in C++ 14 so I had to use my implementation
 template <typename T>
 class Optional {
- private:
-  alignas(T) unsigned char data[sizeof(T)];
-  bool defined = false;
-  T &raw_value() { return *reinterpret_cast<T *>(data); }
-  const T &raw_value() const { return *reinterpret_cast<const T *>(data); }
-
  public:
   Optional() = default;
-  Optional(const T &elem) : defined(true) {new(data) T(elem); }
-  Optional(T &&elem) : defined(true) {new(data) T(std::move(elem)); }
-  Optional(const Optional &other) : defined(other.defined) {
+
+  explicit Optional(const T& elem) : defined(true) { new(data) T(elem); }
+
+  explicit Optional(T&& elem) : defined(true) { new(data) T(std::move(elem)); }
+
+  Optional(const Optional& other) : defined(other.defined) {
     if (defined) {
       new(data) T(other.raw_value());
     }
   }
-  Optional &operator=(const Optional &other) {
+
+  Optional& operator=(const Optional& other) {
     if (defined && other.defined) {
       raw_value() = other.raw_value();
     } else if (defined && !other.defined) {
@@ -52,7 +37,8 @@ class Optional {
     }
     return *this;
   }
-  Optional &operator=(const T &elem) {
+
+  Optional& operator=(const T& elem) {
     if (defined) {
       raw_value() = elem;
     } else {
@@ -61,7 +47,8 @@ class Optional {
     }
     return *this;
   }
-  Optional &operator=(T &&elem) {
+
+  Optional& operator=(T&& elem) {
     if (defined) {
       raw_value() = std::move(elem);
     } else {
@@ -73,19 +60,22 @@ class Optional {
 
   bool has_value() const { return defined; }
 
-  T &operator*() { return raw_value(); }
-  const T &operator*() const { return raw_value(); }
+  T& operator*() { return raw_value(); }
+  const T& operator*() const { return raw_value(); }
 
-  T *operator->() { return &raw_value(); }
-  const T *operator->() const { return &raw_value(); }
-  T &value() {
+  T* operator->() { return &raw_value(); }
+
+  const T* operator->() const { return &raw_value(); }
+
+  T& value() {
     if (has_value()) {
       return raw_value();
     } else {
       throw std::out_of_range("bad optional access");
     }
   }
-  const T &value() const {
+
+  const T& value() const {
     if (has_value()) {
       return raw_value();
     } else {
@@ -99,176 +89,229 @@ class Optional {
       defined = false;
     }
   }
-  operator bool() const { return has_value(); }
+
   ~Optional() { reset(); }
-};
-
-template <class KeyType, class ValueType, class Hash = std::hash<KeyType>>
-class HashMap {
-  typedef std::pair<const KeyType, ValueType> PairType;
-
- public:
-  typedef typename std::list<PairType>::iterator iterator;
-  typedef typename std::list<PairType>::const_iterator const_iterator;
 
  private:
-  typedef Optional<iterator> PointerType;
-  static const size_t kInverseMinLoadFactor = 8;
-  static const size_t kInverseNormalLoadFactor = 4;
-  static const size_t kInverseMaxLoadFactor = 2;
-  std::list<PairType> list_;
-  size_t size_ = 0;
-  std::vector<PointerType> table_;
-  Hash hasher_;
-  inline void insert_internal(std::vector<PointerType> *dst,
-                              PointerType pointer) {
-    size_t idx = hasher_(pointer.value()->first) % dst->size();
-    for (; (*dst)[idx]; idx = (idx + 1) % dst->size()) {
-    }
-    (*dst)[idx] = pointer;
-  }
-  inline size_t find_internal(const KeyType &key) const {
-    size_t idx = hasher_(key) % table_.size();
-    for (; table_[idx]; idx = (idx + 1) % table_.size()) {
-      if (table_[idx].value()->first == key) {
-        return idx;
-      }
-    }
-    return idx;
-  }
-  void rehash(size_t new_capacity) {
-    std::vector<PointerType> new_table(new_capacity);
-    for (auto &ptr : table_) {
-      if (ptr) {
-        insert_internal(&new_table, ptr);
-      }
-    }
-    table_ = std::move(new_table);
-  }
+  alignas(T) unsigned char data[sizeof(T)];
+  bool defined = false;
+  T& raw_value() { return *reinterpret_cast<T*>(data); }
+  const T& raw_value() const { return *reinterpret_cast<const T*>(data); }
+};
 
+// Implementation of keyvalue assosiative container based on hash table
+// using open addressing approach for collision resolution with linear probing
+// and removing elements without tombestones.
+// The table is resized by rehashing all elements when load factor becomes
+// larger then 1/kInverseMaxLoadFactor or lower then 1/kInverseMinLoadFactor
+template <class KeyType, class ValueType, class Hash = std::hash<KeyType>>
+class HashMap {
  public:
-  HashMap(Hash hasher = Hash()) : hasher_(hasher) {}
+  typedef std::pair<const KeyType, ValueType> element;
+  typedef typename std::list<element>::iterator iterator;
+  typedef typename std::list<element>::const_iterator const_iterator;
+  typedef Optional<iterator> optional_iterator;
+
+  static constexpr size_t kInverseMinLoadFactor = 8;
+  static constexpr size_t kInverseNormalLoadFactor = 4;
+  static constexpr size_t kInverseMaxLoadFactor = 2;
+
+  // Constructors
+
+  // Default constructor
+  HashMap(Hash hasher = Hash()) : table_(1), hasher_(hasher) {}
+
+  // Constructs hash map from iterators
   template <typename Iterator>
   HashMap(Iterator begin, Iterator end, Hash hasher = Hash())
-      : list_(begin, end),
-        size_(list_.size()),  // if begin and end are RandomAccessIterators using
-                             // distance(begin, end) would be faster, but with
-                             // InputIterator that code can cause UB
-        table_(size_ * kInverseNormalLoadFactor),
-        hasher_(hasher) {
-    for (auto iter = list_.begin(); iter != list_.end(); ++iter) {
-      insert_internal(&table_, iter);
-    }
+      : list_(begin, end), size_(list_.size()), hasher_(hasher) {
+    rehash();
   }
-  HashMap(std::initializer_list<PairType> initializer, Hash hasher = Hash())
-      : list_(initializer),
-        size_(initializer.size()),
-        table_(size_ * kInverseNormalLoadFactor),
-        hasher_(hasher) {
-    for (auto iter = list_.begin(); iter != list_.end(); ++iter) {
-      insert_internal(&table_, iter);
-    }
-  }
-  HashMap(const HashMap &other) : HashMap(other.begin(), other.end()) {}
-  HashMap(HashMap &&other) {
+
+  // Constructs hash map from std::initializer_list
+  HashMap(std::initializer_list<element> initializer, Hash hasher = Hash())
+      : HashMap(initializer.begin(), initializer.end()) {}
+
+  // Copy constructor
+  HashMap(const HashMap& other) : HashMap(other.begin(), other.end()) {}
+
+  // Move constructor
+  HashMap(HashMap&& other) {
     std::swap(table_, other.table_);
     std::swap(list_, other.list_);
     std::swap(hasher_, other.hasher_);
     std::swap(size_, other.size_);
   }
-  HashMap &operator=(const HashMap &other) {
-    list_.clear();  // can't assing list because keys stored in list are marked
+
+  // Assignment operators
+
+  // Copy assignment operator.
+  HashMap& operator=(const HashMap& other) {
+    if (&other == this)
+      return *this;
+    list_.clear();  // Can't assing list because keys stored in list are marked
                     // as constant
     std::copy(other.list_.begin(), other.list_.end(),
               std::back_inserter(list_));
-    table_ = other.table_;
     size_ = other.size_;
     hasher_ = other.hasher_;
+    rehash();
     return *this;
   }
-  HashMap &operator=(HashMap &&other) {
+
+  // Move assignment operator.
+  HashMap& operator=(HashMap&& other) {
     std::swap(table_, other.table_);
     std::swap(list_, other.list_);
     std::swap(hasher_, other.hasher_);
     std::swap(size_, other.size_);
     return *this;
   }
+
+  // Returns the number of elements.
   size_t size() const { return size_; }
+
+  // Check whether container is empty.
   bool empty() const { return !size_; }
+
+  // Returns the function used to hash the keys.
   Hash hash_function() const { return hasher_; }
-  void insert(const PairType &key_value) {
-    if ((size_ + 1) * kInverseMaxLoadFactor > table_.size())
-      rehash((size_ + 1) * kInverseNormalLoadFactor);
-    size_t idx = find_internal(key_value.first);
-    if (!table_[idx]) {
+
+  // Inserts element into container, if there isn't element with the same key
+  // already. Average time complexity O(1). Doesn't invalidates iterators.
+  void insert(const element& key_value) {
+    size_t cell = find_internal(table_, key_value.first);
+    if (!table_[cell].has_value()) {
       list_.push_back(key_value);
-      table_[idx] = --list_.end();
+      table_[cell] = --list_.end();
       ++size_;
+      rehash_if_needed();
     }
   }
-  void erase(const KeyType &key) {
-    if (empty()) return;
-    size_t idx = find_internal(key);
-    if (table_[idx]) {
-      // recover chains
-      list_.erase(table_[idx].value());
-      for (size_t i = (idx + 1) % table_.size(); table_[i];
-           i = (i + 1) % table_.size()) {
-        size_t hash = hasher_(table_[i].value()->first) % table_.size();
-        if (hash <= idx || hash > i) {
-          table_[idx] = table_[i];
-          idx = i;
-          continue;
-        }
-      }
-      table_[idx].reset();
+
+  // Removes element. Average time complexity is O(1). Doesn't invalidates
+  // except erased element.
+  void erase(const KeyType& key) {
+    size_t cell = find_internal(table_, key);
+    if (table_[cell].has_value()) {
+      list_.erase(table_[cell].value());
+      recover_chains(cell);
       --size_;
     }
-    if (size_ * kInverseMinLoadFactor < table_.size())
-      rehash(size_ * kInverseNormalLoadFactor);
+    rehash_if_needed();
   }
-  iterator find(const KeyType &key) {
-    if (empty()) return list_.end();
-    size_t idx = find_internal(key);
-    if (table_[idx])
-      return table_[idx].value();
+
+  // Finds element with specific key and returns iterator. Average time
+  // complexity O(1).
+  iterator find(const KeyType& key) {
+    size_t cell = find_internal(table_, key);
+    if (table_[cell].has_value())
+      return table_[cell].value();
     else
       return list_.end();
   }
-  const_iterator find(const KeyType &key) const {
-    if (empty()) return list_.end();
-    size_t idx = find_internal(key);
-    if (table_[idx])
-      return table_[idx].value();
+
+  // Finds element with specific key and returns constant iterator. Average time
+  // complexity O(1).
+  const_iterator find(const KeyType& key) const {
+    size_t cell = find_internal(table_, key);
+    if (table_[cell].has_value())
+      return table_[cell].value();
     else
       return list_.end();
   }
-  ValueType &operator[](const KeyType &key) {
-    size_t idx;
-    if ((size() + 1) * kInverseMaxLoadFactor >= table_.size()) {
-      rehash((size() + 1) * kInverseNormalLoadFactor);
-    }
-    idx = find_internal(key);
-    if (!table_[idx]) {
-      list_.push_back(PairType(key, ValueType()));
+
+  // Returns a reference to the value that is mapped to the key. Performs
+  // insertion if the dey doesn't exists. Average time complexity O(1).
+  ValueType& operator[](const KeyType& key) {
+    size_t cell = find_internal(table_, key);
+    if (!table_[cell].has_value()) {
+      list_.push_back(element(key, ValueType()));
       ++size_;
-      table_[idx] = --list_.end();
+      table_[cell] = --list_.end();
+      rehash_if_needed();
+      return (--list_.end())->second;
     }
-    return table_[idx].value()->second;
+    return table_[cell].value()->second;
   }
-  const ValueType &at(const KeyType &key) const {
-    if (empty()) throw std::out_of_range("Key doesn't exists");
-    size_t idx = find_internal(key);
-    if (!table_[idx]) throw std::out_of_range("Key doesn't exists");
-    return table_[idx].value()->second;
+
+  // Returns a reference to the value that is mapped to the key. Throws
+  // exception if the dey doesn't exists. Average time complexity O(1).
+  const ValueType& at(const KeyType& key) const {
+    size_t cell = find_internal(table_, key);
+    if (!table_[cell].has_value())
+      throw std::out_of_range("Key doesn't exists");
+    return table_[cell].value()->second;
   }
+
+  // Erases all elements from the container.
   void clear() {
     list_.clear();
-    table_.clear();
+    table_.resize(1);
+    table_[0].reset();
     size_ = 0;
   }
+
+  // Iterators.
   iterator begin() { return list_.begin(); }
   iterator end() { return list_.end(); }
   const_iterator begin() const { return list_.begin(); }
   const_iterator end() const { return list_.end(); }
+
+ private:
+  std::list<element> list_;
+  size_t size_ = 0;
+  std::vector<optional_iterator> table_;
+  Hash hasher_;
+
+  // Finds the cell of the hash table in which iterator for the element with
+  // given key is stored. If the key doesn't exist returns first free cell
+  // in the chain.
+  inline size_t find_internal(const std::vector<optional_iterator>& table,
+                              const KeyType& key) const {
+    size_t i = hasher_(key) % table.size();
+    while (table[i].has_value()) {
+      if (table[i].value()->first == key) {
+        return i;
+      }
+      i = (i + 1) % table.size();
+    }
+    return i;
+  }
+
+  // Recovers chains after element was erased.
+  void recover_chains(size_t deleted) {
+    size_t i = (deleted + 1) % table_.size();
+    while (table_[i].has_value()) {
+      size_t hash = hasher_(table_[i].value()->first) % table_.size();
+      if (hash <= deleted || hash > i) {
+        table_[deleted] = table_[i];
+        deleted = i;
+      }
+      i = (i + 1) % table_.size();
+    }
+    table_[deleted].reset();
+  }
+
+  size_t normal_capacity_for_size(size_t size) {
+    return std::max<size_t>(1UL, size * kInverseNormalLoadFactor);
+  }
+
+  // Creates table of new capacity, copies all iterators to the new table,
+  // doesn't invalidate iterators.
+  void rehash() {
+    std::vector<optional_iterator> new_table(normal_capacity_for_size(size_));
+    for (auto iter = list_.begin(); iter != list_.end(); ++iter) {
+      size_t cell = find_internal(new_table, iter->first);
+      new_table[cell] = iter;
+    }
+    table_ = std::move(new_table);
+  }
+
+  void rehash_if_needed() {
+    if (table_.size() < 1UL || table_.size() < kInverseMaxLoadFactor * size_ ||
+        table_.size() > kInverseMinLoadFactor * size_) {
+      rehash();
+    }
+  }
 };
