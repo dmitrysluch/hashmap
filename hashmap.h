@@ -1,4 +1,4 @@
-// Copyright 2020 Dmitry Sluch dbsluch @edu.hse.ru
+// Copyright 2020 Dmitry Sluch dbsluch@edu.hse.ru
 
 #include <stddef.h>
 #include <algorithm>
@@ -8,8 +8,8 @@
 #include <utility>
 #include <vector>
 
-// Optional class manages value that may or may not be present
-// Optional isn't implemented in C++ 14 so I had to use my implementation
+// Optional class manages value that may or may not be present.
+// Optional isn't implemented in C++ 14, so I had to use my implementation.
 template <typename T>
 class Optional {
  public:
@@ -99,11 +99,12 @@ class Optional {
   const T& raw_value() const { return *reinterpret_cast<const T*>(data); }
 };
 
-// Implementation of keyvalue assosiative container based on hash table
+// Implementation of key-value associative container based on a hash table
 // using open addressing approach for collision resolution with linear probing
-// and removing elements without tombestones.
-// The table is resized by rehashing all elements when load factor becomes
-// larger then 1/kInverseMaxLoadFactor or lower then 1/kInverseMinLoadFactor
+// and removing elements without tombstones.
+// The table is resized by rehashing all the elements when the load factor
+// becomes larger then 1/kInverseMaxLoadFactor
+// or lower then 1/kInverseMinLoadFactor.
 template <class KeyType, class ValueType, class Hash = std::hash<KeyType>>
 class HashMap {
  public:
@@ -116,26 +117,26 @@ class HashMap {
   static constexpr size_t kInverseNormalLoadFactor = 4;
   static constexpr size_t kInverseMaxLoadFactor = 2;
 
-  // Constructors
+  // Constructors.
 
-  // Default constructor
+  // Default constructor.
   HashMap(Hash hasher = Hash()) : table_(1), hasher_(hasher) {}
 
-  // Constructs hash map from iterators
+  // Constructs hash map from iterators.
   template <typename Iterator>
   HashMap(Iterator begin, Iterator end, Hash hasher = Hash())
       : list_(begin, end), size_(list_.size()), hasher_(hasher) {
     rehash();
   }
 
-  // Constructs hash map from std::initializer_list
+  // Constructs hash map from std::initializer_list.
   HashMap(std::initializer_list<element> initializer, Hash hasher = Hash())
       : HashMap(initializer.begin(), initializer.end()) {}
 
-  // Copy constructor
+  // Copy constructor.
   HashMap(const HashMap& other) : HashMap(other.begin(), other.end()) {}
 
-  // Move constructor
+  // Move constructor.
   HashMap(HashMap&& other) {
     std::swap(table_, other.table_);
     std::swap(list_, other.list_);
@@ -143,14 +144,15 @@ class HashMap {
     std::swap(size_, other.size_);
   }
 
-  // Assignment operators
+  // Assignment operators.
 
   // Copy assignment operator.
   HashMap& operator=(const HashMap& other) {
-    if (&other == this)
+    if (&other == this) {
       return *this;
-    list_.clear();  // Can't assing list because keys stored in list are marked
-                    // as constant
+    }
+    list_.clear();
+    // Can't assing list because keys stored in list are marked as constant.
     std::copy(other.list_.begin(), other.list_.end(),
               std::back_inserter(list_));
     size_ = other.size_;
@@ -171,14 +173,14 @@ class HashMap {
   // Returns the number of elements.
   size_t size() const { return size_; }
 
-  // Check whether container is empty.
+  // Checks whether the container is empty.
   bool empty() const { return !size_; }
 
   // Returns the function used to hash the keys.
   Hash hash_function() const { return hasher_; }
 
   // Inserts element into container, if there isn't element with the same key
-  // already. Average time complexity O(1). Doesn't invalidates iterators.
+  // already. Expected time complexity is O(1). Doesn't invalidates iterators.
   void insert(const element& key_value) {
     size_t cell = find_internal(table_, key_value.first);
     if (!table_[cell].has_value()) {
@@ -189,8 +191,8 @@ class HashMap {
     }
   }
 
-  // Removes element. Average time complexity is O(1). Doesn't invalidates
-  // except erased element.
+  // Removes element. Expected time complexity is O(1). Doesn't invalidate
+  // iterators except the iterator to the erased element.
   void erase(const KeyType& key) {
     size_t cell = find_internal(table_, key);
     if (table_[cell].has_value()) {
@@ -201,28 +203,30 @@ class HashMap {
     rehash_if_needed();
   }
 
-  // Finds element with specific key and returns iterator. Average time
-  // complexity O(1).
+  // Finds element with the specific key and returns an iterator.
+  // Expected time complexity is O(1).
   iterator find(const KeyType& key) {
     size_t cell = find_internal(table_, key);
-    if (table_[cell].has_value())
+    if (table_[cell].has_value()) {
       return table_[cell].value();
-    else
+    } else {
       return list_.end();
+    }
   }
 
-  // Finds element with specific key and returns constant iterator. Average time
-  // complexity O(1).
+  // Finds element with the specific key and returns a constant iterator.
+  // Expected time complexity is O(1).
   const_iterator find(const KeyType& key) const {
     size_t cell = find_internal(table_, key);
-    if (table_[cell].has_value())
+    if (table_[cell].has_value()) {
       return table_[cell].value();
-    else
+    } else {
       return list_.end();
+    }
   }
 
   // Returns a reference to the value that is mapped to the key. Performs
-  // insertion if the dey doesn't exists. Average time complexity O(1).
+  // insertion if the key doesn't exist. Expected time complexity is O(1).
   ValueType& operator[](const KeyType& key) {
     size_t cell = find_internal(table_, key);
     if (!table_[cell].has_value()) {
@@ -236,11 +240,12 @@ class HashMap {
   }
 
   // Returns a reference to the value that is mapped to the key. Throws
-  // exception if the dey doesn't exists. Average time complexity O(1).
+  // exception if the dey doesn't exists. Expected time complexity is O(1).
   const ValueType& at(const KeyType& key) const {
     size_t cell = find_internal(table_, key);
-    if (!table_[cell].has_value())
+    if (!table_[cell].has_value()) {
       throw std::out_of_range("Key doesn't exists");
+    }
     return table_[cell].value()->second;
   }
 
@@ -279,12 +284,23 @@ class HashMap {
     return i;
   }
 
-  // Recovers chains after element was erased.
+  // Recovers the chains after an element was erased.
+  // The function scans the elements following the one that has been deleted
+  // until reaching the cell without an element and rearranges the elements
+  // so that they may be accessed by the later search.
+  // Expected time complexity is O(1).
   void recover_chains(size_t deleted) {
     size_t i = (deleted + 1) % table_.size();
     while (table_[i].has_value()) {
+      // Get the cell of the hash table in which element in the i-th
+      // cell would be placed if there were no collisions.
       size_t hash = hasher_(table_[i].value()->first) % table_.size();
-      if (hash <= deleted || hash > i) {
+      // Check whether the hash function points to the cell that goes in chain
+      // before the one being deleted. If so put the i-th element in the cell
+      // element from which has been deleted. Continue the algorithm as if
+      // the i-sh element was the deleted one.
+      if ((deleted < i && (hash <= deleted || hash > i)) ||
+        (deleted > i && hash <= deleted && hash > i)) {
         table_[deleted] = table_[i];
         deleted = i;
       }
@@ -308,9 +324,12 @@ class HashMap {
     table_ = std::move(new_table);
   }
 
+  // Checks whether table size hash to be increased or decreased and
+  // triggers rehashing if so.
   void rehash_if_needed() {
-    if (table_.size() < 1UL || table_.size() < kInverseMaxLoadFactor * size_ ||
-        table_.size() > kInverseMinLoadFactor * size_) {
+    if (table_.size() < 1UL || table_.size() < kInverseMaxLoadFactor * size_) {
+      rehash();
+    } else if (table_.size() > kInverseMinLoadFactor * size_) {
       rehash();
     }
   }
