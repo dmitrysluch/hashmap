@@ -27,11 +27,19 @@ void stress_remove() {
   std::cerr << "Testing removing elements\n";
   for (int t = 0; t < kNumTests; ++t) {
     for (int i = 0; i < kMaxElements; ++i) {
-      vec.emplace_back(rnd(), rnd());
-      hash_map[vec.back().first] = vec.back().second;
-      for (auto &[key, value] : vec) {
-        if (hash_map[key] != value) {
+      int key = rnd();
+      int val = rnd();
+      auto it = find_if(vec.begin(), vec.end(), [key](pair<int, int> e){return e.first == key; });
+      if (it == vec.end()) {
+        vec.emplace_back(key, val);
+      }
+      hash_map[key] = val;
+      for (auto &[k, v] : vec) {
+        auto it2 = hash_map.find(k);
+        if (it2 == hash_map.end()) {
           fail("Some elements can't be accessed after adding an element");
+        } else if (it2->first != k && it2->second != v) {
+          fail("Some elements changed value after adding an element");
         }
       }
     }
@@ -43,9 +51,12 @@ void stress_remove() {
         fail("Element hasn't been removed");
       }
       vec.erase(vec.begin() + i);
-      for (auto & [key, value] : vec) {
-        if (hash_map[key] != value) {
+      for (auto & [k, v] : vec) {
+        auto it2 = hash_map.find(k);
+        if (it2 == hash_map.end()) {
           fail("Some elements can't be accessed after removing an element");
+        } else if (it2->first != k && it2->second != v) {
+          fail("Some elements changed value after removing an element");
         }
       }
     }
